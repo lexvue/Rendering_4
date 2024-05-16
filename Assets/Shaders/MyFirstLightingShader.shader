@@ -17,31 +17,43 @@ Shader "Unlit/MyFirstLightingShader"
 
             #include "UnityCG.cginc" // UnityCG -> UnityInstancing -> UnityShaderVariables -> HLSLSupport
 
-            struct Interpolators {
-                float4 position : SV_POSITION;
+            struct VertexData {
+                float4 position : POSITION;
+                float3 normal : NORMAL;
                 float2 uv : TEXCOORD0;
             };
 
-            struct VertexData {
-                float4 position : POSITION;
+            struct Interpolators {
+                float4 position : SV_POSITION;
                 float2 uv : TEXCOORD0;
+                float3 normal : TEXCOORD1;
             };
 
             float4 _Tint;
             sampler2D _MainTex;
             float4 _MainTex_ST; // For Tiling and Offset controls
 
-            Interpolators MyVertexProgram(VertexData v) { //: SV_POSITION  // SV = System Value, POSITION = final vertex position
+            Interpolators MyVertexProgram(VertexData v) {
                 Interpolators i;
-                //i.localPosition = v.position.xyz; // could also use position.rgb
                 i.position = UnityObjectToClipPos(v.position);
-                //i.uv = v.uv * _MainTex_ST.xy + _MainTex_ST.zw;
+                /*
+                i.normal = mul(
+                    transpose((float3x3)unity_ObjectToWorld), 
+                    v.normal
+                );
+                i.normal = normalize(i.normal);
+                */
+                i.normal = UnityObjectToWorldNormal(v.normal);
                 i.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 return i;
-            }
+            } 
 
-            float4 MyFragmentProgram(Interpolators i) : SV_TARGET { // Outputs an RGBA color val for one pixel // SV_TARGET = frame buffer
-                return tex2D(_MainTex, i.uv) * _Tint; //float4(i.uv, 1, 1); // Alpha val gets ignored by the shader because there is no support for transparency written here yet, so 0 here doesn't affect it
+            float4 MyFragmentProgram(Interpolators i) : SV_TARGET {
+                // The amount of diffused light is directly proportional to the cosine of the angle between the light 
+                // direction and the surface normal. This is known as Lambert's cosine law
+                i.normal = normalize(i.normal);
+                // return max(0, dot(float3(0, 1, 0), i.normal)); // clamping because we don't want negative light 
+                return saturate(dot(float3(0, 1, 0), i.normal)); // most shaders use saturate instead. clamps between 0 and 1
             }
 
             ENDCG // Terminate code with ENDCG
