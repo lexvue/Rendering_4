@@ -10,12 +10,17 @@ Shader "Unlit/MyFirstLightingShader"
         // Having more than one Pass means that the object gets rendered multiple times -> good for a lot of effects
 
         Pass {
+
+            Tags {
+                "LightMode" = "ForwardBase"
+            }
+
             CGPROGRAM  // Start of Unity Shading Language. Have to start with CGPROGRAM 
 
             #pragma vertex MyVertexProgram // For Mesh Vertices and Transformation Matrix (vertex data of a mesh, object space -> display space)
             #pragma fragment MyFragmentProgram // For Transformed vertices from MyVertexProgram and Mesh Triangles (coloring pixels in a mesh's triangle)
 
-            #include "UnityCG.cginc" // UnityCG -> UnityInstancing -> UnityShaderVariables -> HLSLSupport
+            #include "UnityStandardBRDF.cginc" // for DotClamped and UnityCD.cginc
 
             struct VertexData {
                 float4 position : POSITION;
@@ -36,24 +41,17 @@ Shader "Unlit/MyFirstLightingShader"
             Interpolators MyVertexProgram(VertexData v) {
                 Interpolators i;
                 i.position = UnityObjectToClipPos(v.position);
-                /*
-                i.normal = mul(
-                    transpose((float3x3)unity_ObjectToWorld), 
-                    v.normal
-                );
-                i.normal = normalize(i.normal);
-                */
                 i.normal = UnityObjectToWorldNormal(v.normal);
                 i.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 return i;
             } 
 
             float4 MyFragmentProgram(Interpolators i) : SV_TARGET {
-                // The amount of diffused light is directly proportional to the cosine of the angle between the light 
-                // direction and the surface normal. This is known as Lambert's cosine law
                 i.normal = normalize(i.normal);
-                // return max(0, dot(float3(0, 1, 0), i.normal)); // clamping because we don't want negative light 
-                return saturate(dot(float3(0, 1, 0), i.normal)); // most shaders use saturate instead. clamps between 0 and 1
+                float3 lightDir = _WorldSpaceLightPos0.xyz;
+                float3 lightColor = _LightColor0.rgb;
+                float3 diffuse = lightColor * DotClamped(lightDir, i.normal)
+                return float4(diffuse, 1); // most shaders use saturate instead. clamps between 0 and 1
             }
 
             ENDCG // Terminate code with ENDCG
