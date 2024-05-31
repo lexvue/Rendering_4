@@ -2,23 +2,20 @@ Shader "Unlit/MyFirstLightingShader"
 {
     Properties {
         _Tint ("Tint", Color) = (1, 1, 1, 1)
-        _MainTex ("Texture", 2D) = "white" {}
-    }
-    // Can use these to group multiple shader variants together
-    SubShader { 
-        // Must contain at least one Pass, this is where an object actually gets rendered
-        // Having more than one Pass means that the object gets rendered multiple times -> good for a lot of effects
+        _MainTex ("Albedo", 2D) = "white" {}
 
+    }
+    SubShader { 
         Pass {
 
             Tags {
                 "LightMode" = "ForwardBase"
             }
 
-            CGPROGRAM  // Start of Unity Shading Language. Have to start with CGPROGRAM 
+            CGPROGRAM
 
-            #pragma vertex MyVertexProgram // For Mesh Vertices and Transformation Matrix (vertex data of a mesh, object space -> display space)
-            #pragma fragment MyFragmentProgram // For Transformed vertices from MyVertexProgram and Mesh Triangles (coloring pixels in a mesh's triangle)
+            #pragma vertex MyVertexProgram
+            #pragma fragment MyFragmentProgram
 
             #include "UnityStandardBRDF.cginc" // for DotClamped and UnityCD.cginc
 
@@ -32,6 +29,7 @@ Shader "Unlit/MyFirstLightingShader"
                 float4 position : SV_POSITION;
                 float2 uv : TEXCOORD0;
                 float3 normal : TEXCOORD1;
+                float3 worldPos : TEXCOORD2;
             };
 
             float4 _Tint;
@@ -41,6 +39,7 @@ Shader "Unlit/MyFirstLightingShader"
             Interpolators MyVertexProgram(VertexData v) {
                 Interpolators i;
                 i.position = UnityObjectToClipPos(v.position);
+                i.worldPos = mul(unity_ObjectToWorld, v.position);
                 i.normal = UnityObjectToWorldNormal(v.normal);
                 i.uv = TRANSFORM_TEX(v.uv, _MainTex);
                 return i;
@@ -49,12 +48,18 @@ Shader "Unlit/MyFirstLightingShader"
             float4 MyFragmentProgram(Interpolators i) : SV_TARGET {
                 i.normal = normalize(i.normal);
                 float3 lightDir = _WorldSpaceLightPos0.xyz;
+                float3 viewDir = normalize(_WorldSpaceCameraPos - i.worldPos);
+
                 float3 lightColor = _LightColor0.rgb;
-                float3 diffuse = lightColor * DotClamped(lightDir, i.normal)
-                return float4(diffuse, 1); // most shaders use saturate instead. clamps between 0 and 1
+                float3 albedo = tex2D(_MainTex, i.uv).rgb * _Tint.rgb;
+                float3 diffuse = albedo * lightColor * DotClamped(lightDir, i.normal);
+
+                float3 reflectionDir = reflect(-lightDir, i.normal);
+
+                return DotClamped(viewDir, reflectionDir); 
             }
 
-            ENDCG // Terminate code with ENDCG
+            ENDCG
             
         }
     }
